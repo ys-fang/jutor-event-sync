@@ -106,7 +106,7 @@ export async function initEventSync(
   } = config;
 
   // 1. Check Jutor session
-  const apiBase = jutorApiBase ?? 'https://jutor.com';
+  const apiBase = jutorApiBase ?? '';
   const user: JutorUser | null = await fetchJutorUser(apiBase);
 
   if (!user) {
