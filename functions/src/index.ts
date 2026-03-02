@@ -15,8 +15,8 @@ export const mintToken = onRequest(
     }
 
     const { uid } = req.body;
-    if (!uid || typeof uid !== 'string') {
-      res.status(400).json({ error: 'uid is required' });
+    if (!uid || typeof uid !== 'string' || uid.trim().length === 0 || uid.length > 128) {
+      res.status(400).json({ error: 'uid is required and must be 1-128 characters' });
       return;
     }
 
@@ -24,6 +24,7 @@ export const mintToken = onRequest(
       const token = await admin.auth().createCustomToken(uid);
       res.status(200).json({ token });
     } catch (error) {
+      console.error('createCustomToken failed:', error);
       res.status(500).json({ error: 'Failed to create token' });
     }
   }
