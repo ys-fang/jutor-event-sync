@@ -12,7 +12,16 @@ export async function fetchJutorUser(
       credentials: 'include',
     });
     if (!res.ok) return null;
-    return (await res.json()) as JutorUser;
+    const json = await res.json();
+    if (!json?.success || !json?.data?.uid) return null;
+    const { uid, userName, userData } = json.data;
+    return {
+      uid,
+      userName,
+      grade: userData?.grade ?? undefined,
+      class: userData?.class ?? undefined,
+      schoolName: userData?.schoolName ?? undefined,
+    };
   } catch {
     return null;
   }

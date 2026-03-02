@@ -11,23 +11,34 @@ describe('fetchJutorUser', () => {
   });
 
   it('returns JutorUser when session is active', async () => {
-    const mockUser: JutorUser = {
-      uid: 'user-123',
-      userName: 'Alice',
-      email: 'alice@example.com',
-      grade: '3',
-      class: 'A',
-      schoolName: 'Test School',
+    // Jutor API returns nested format: { success, data: { uid, userName, userData } }
+    const mockApiResponse = {
+      success: true,
+      data: {
+        uid: 'user-123',
+        userName: 'Alice',
+        userData: {
+          grade: '3',
+          class: 'A',
+          schoolName: 'Test School',
+        },
+      },
     };
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(mockUser),
+      json: () => Promise.resolve(mockApiResponse),
     });
 
     const user = await fetchJutorUser(apiBase);
 
-    expect(user).toEqual(mockUser);
+    expect(user).toEqual({
+      uid: 'user-123',
+      userName: 'Alice',
+      grade: '3',
+      class: 'A',
+      schoolName: 'Test School',
+    });
     expect(globalThis.fetch).toHaveBeenCalledWith(
       `${apiBase}/api/v1/auth/user-profile`,
       { credentials: 'include' }
