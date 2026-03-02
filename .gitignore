@@ -3,3 +3,4 @@ dist/
 lib/
 .firebase/
 *.log
+jutor-event-sa-key.json
