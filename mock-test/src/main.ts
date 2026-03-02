@@ -10,7 +10,7 @@ const FIREBASE_CONFIG = {
 };
 
 const MINT_TOKEN_URL =
-  'https://speech-token-server-t26idchpnq-de.a.run.app/api/event/mint-token';
+  'https://speech-token-server-819106170113.asia-east1.run.app/api/event/mint-token';
 
 const $ = (id: string) => document.getElementById(id)!;
 
