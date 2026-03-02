@@ -73,6 +73,7 @@ describe('requestMintToken', () => {
     expect(token).toBe('custom-token-abc');
     expect(globalThis.fetch).toHaveBeenCalledWith(mintTokenUrl, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid: 'user-123' }),
     });

@@ -28,6 +28,7 @@ export async function requestMintToken(
 ): Promise<string> {
   const res = await fetch(mintTokenUrl, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ uid }),
   });

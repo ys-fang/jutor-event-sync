@@ -78,6 +78,8 @@ describe('initEventSync', () => {
       removeEventListener: vi.fn(),
       location: { href: '' },
     };
+    // @ts-expect-error -- partial document mock for visibilitychange
+    globalThis.document = { visibilityState: 'visible' };
   });
 
   afterEach(() => {

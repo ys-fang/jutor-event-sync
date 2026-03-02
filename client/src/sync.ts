@@ -48,10 +48,10 @@ function setLocalLastSync(prefix: string, uid: string, ts: number): void {
 }
 
 /**
- * Pull remote data from Firestore if it is newer than local.
- * Overwrites matching localStorage keys with remote values.
+ * Sync localStorage with Firestore on startup.
+ * If remote is newer, overwrites local. Otherwise pushes local to remote.
  */
-async function pullFromFirestore(
+async function syncOnStartup(
   uid: string,
   appId: string,
   prefix: string
@@ -126,20 +126,28 @@ export async function initEventSync(
   const token = await requestMintToken(mintTokenUrl, user.uid);
   await signInWithToken(token);
 
-  // 3. Pull on startup
-  await pullFromFirestore(user.uid, appId, prefix);
+  // 3. Sync on startup (pull if remote newer, push otherwise)
+  await syncOnStartup(user.uid, appId, prefix);
 
-  // 4. Periodic sync
+  // 4. Periodic sync (with error handling to prevent silent failures)
   const intervalId = setInterval(async () => {
-    await pushToFirestore(user.uid, appId, prefix);
+    try {
+      await pushToFirestore(user.uid, appId, prefix);
+    } catch (err) {
+      console.error('[event-sync] periodic sync failed:', err);
+    }
   }, syncIntervalMs);
 
-  // 5. beforeunload handler
-  const beforeUnloadHandler = () => {
-    // Best-effort push — synchronous context, so we fire and forget
-    pushToFirestore(user.uid, appId, prefix);
+  // 5. beforeunload + visibilitychange handlers for best-effort save
+  const saveHandler = () => {
+    pushToFirestore(user.uid, appId, prefix).catch(() => {});
   };
-  window.addEventListener('beforeunload', beforeUnloadHandler);
+  window.addEventListener('beforeunload', saveHandler);
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      saveHandler();
+    }
+  });
 
   // Return instance
   return {
@@ -151,7 +159,7 @@ export async function initEventSync(
     syncNow: () => pushToFirestore(user.uid, appId, prefix),
     destroy: () => {
       clearInterval(intervalId);
-      window.removeEventListener('beforeunload', beforeUnloadHandler);
+      window.removeEventListener('beforeunload', saveHandler);
     },
   };
 }
