@@ -1,16 +1,7 @@
 import { initEventSync, type EventSyncInstance } from '@jutor-event/sync';
 
-const FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyDCluZGDwmr1EusTUDzuqz7hU9_q6YxQf4',
-  authDomain: 'jutor-event.firebaseapp.com',
-  projectId: 'jutor-event',
-  storageBucket: 'jutor-event.firebasestorage.app',
-  messagingSenderId: '279251916503',
-  appId: '1:279251916503:web:54c7dc2954bb0c0a820292',
-};
-
-const MINT_TOKEN_URL =
-  'https://speech-token-server-819106170113.asia-east1.run.app/api/event/mint-token';
+const SYNC_API_URL =
+  'https://speech-token-server-819106170113.asia-east1.run.app/api/event/sync';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -27,8 +18,7 @@ async function main() {
     sync = await initEventSync({
       appId: 'mock-test',
       localStoragePrefix: 'mock_',
-      mintTokenUrl: MINT_TOKEN_URL,
-      firebaseConfig: FIREBASE_CONFIG,
+      syncApiUrl: SYNC_API_URL,
     });
   } catch (err: any) {
     $('auth-info').textContent = `Sync init failed: ${err.message}`;
@@ -75,7 +65,7 @@ async function main() {
 
   $('sync-now').addEventListener('click', async () => {
     if (!sync?.isLoggedIn) return;
-    log('Syncing to Firestore...');
+    log('Syncing to server...');
     try {
       await sync.syncNow();
       log('Sync complete');

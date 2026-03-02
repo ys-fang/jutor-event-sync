@@ -1,11 +1,6 @@
 import type { EventSyncConfig, EventSyncInstance, JutorUser } from './types.js';
-import { fetchJutorUser, requestMintToken } from './auth.js';
-import {
-  initFirebase,
-  signInWithToken,
-  readRecord,
-  writeRecord,
-} from './firebase-client.js';
+import { fetchJutorUser } from './auth.js';
+import { readRecord, writeRecord } from './sync-api.js';
 
 const DEFAULT_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const LAST_SYNC_SUFFIX = '__lastSync';
@@ -52,11 +47,12 @@ function setLocalLastSync(prefix: string, uid: string, ts: number): void {
  * If remote is newer, overwrites local. Otherwise pushes local to remote.
  */
 async function syncOnStartup(
+  syncApiUrl: string,
   uid: string,
   appId: string,
   prefix: string
 ): Promise<void> {
-  const remote = await readRecord(uid, appId);
+  const remote = await readRecord(syncApiUrl, uid, appId);
   const localLastSync = getLocalLastSync(prefix, uid);
 
   if (remote && remote.lastSync > localLastSync) {
@@ -66,21 +62,22 @@ async function syncOnStartup(
     }
     setLocalLastSync(prefix, uid, remote.lastSync);
   } else {
-    // Local is newer or no remote record — push to Firestore
-    await pushToFirestore(uid, appId, prefix);
+    // Local is newer or no remote record — push to server
+    await pushToServer(syncApiUrl, uid, appId, prefix);
   }
 }
 
 /**
- * Collect localStorage data and write it to Firestore.
+ * Collect localStorage data and write it via the sync API.
  */
-async function pushToFirestore(
+async function pushToServer(
+  syncApiUrl: string,
   uid: string,
   appId: string,
   prefix: string
 ): Promise<void> {
   const data = collectLocalData(prefix, uid);
-  await writeRecord(uid, appId, data);
+  await writeRecord(syncApiUrl, uid, appId, data);
   setLocalLastSync(prefix, uid, Date.now());
 }
 
@@ -88,10 +85,9 @@ async function pushToFirestore(
  * Initialize the event sync system.
  *
  * 1. Checks if the user is logged in to Jutor.
- * 2. Initializes Firebase and authenticates with a custom token.
- * 3. Pulls from Firestore on startup (if remote is newer).
- * 4. Sets up periodic sync and beforeunload handler.
- * 5. Returns an EventSyncInstance.
+ * 2. Pulls from server on startup (if remote is newer).
+ * 3. Sets up periodic sync and beforeunload handler.
+ * 4. Returns an EventSyncInstance.
  */
 export async function initEventSync(
   config: EventSyncConfig
@@ -100,8 +96,7 @@ export async function initEventSync(
     appId,
     localStoragePrefix: prefix,
     jutorApiBase,
-    mintTokenUrl,
-    firebaseConfig,
+    syncApiUrl,
     syncIntervalMs = DEFAULT_SYNC_INTERVAL_MS,
   } = config;
 
@@ -121,26 +116,21 @@ export async function initEventSync(
     };
   }
 
-  // 2. Firebase init + auth
-  initFirebase(firebaseConfig);
-  const token = await requestMintToken(mintTokenUrl, user.uid);
-  await signInWithToken(token);
+  // 2. Sync on startup (pull if remote newer, push otherwise)
+  await syncOnStartup(syncApiUrl, user.uid, appId, prefix);
 
-  // 3. Sync on startup (pull if remote newer, push otherwise)
-  await syncOnStartup(user.uid, appId, prefix);
-
-  // 4. Periodic sync (with error handling to prevent silent failures)
+  // 3. Periodic sync (with error handling to prevent silent failures)
   const intervalId = setInterval(async () => {
     try {
-      await pushToFirestore(user.uid, appId, prefix);
+      await pushToServer(syncApiUrl, user.uid, appId, prefix);
     } catch (err) {
       console.error('[event-sync] periodic sync failed:', err);
     }
   }, syncIntervalMs);
 
-  // 5. beforeunload + visibilitychange handlers for best-effort save
+  // 4. beforeunload + visibilitychange handlers for best-effort save
   const saveHandler = () => {
-    pushToFirestore(user.uid, appId, prefix).catch(() => {});
+    pushToServer(syncApiUrl, user.uid, appId, prefix).catch(() => {});
   };
   window.addEventListener('beforeunload', saveHandler);
   window.addEventListener('visibilitychange', () => {
@@ -156,7 +146,7 @@ export async function initEventSync(
     redirectToLogin: () => {
       window.location.href = `${apiBase}/login`;
     },
-    syncNow: () => pushToFirestore(user.uid, appId, prefix),
+    syncNow: () => pushToServer(syncApiUrl, user.uid, appId, prefix),
     destroy: () => {
       clearInterval(intervalId);
       window.removeEventListener('beforeunload', saveHandler);

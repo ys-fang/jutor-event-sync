@@ -11,8 +11,7 @@ export interface EventSyncConfig {
   appId: string;
   localStoragePrefix: string;
   jutorApiBase?: string;
-  mintTokenUrl: string;
-  firebaseConfig: Record<string, string>;
+  syncApiUrl: string;
   syncIntervalMs?: number;
 }
 

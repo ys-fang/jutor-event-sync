@@ -26,23 +26,3 @@ export async function fetchJutorUser(
     return null;
   }
 }
-
-/**
- * Request a Firebase custom token from the mintToken endpoint.
- * Throws if the request fails.
- */
-export async function requestMintToken(
-  mintTokenUrl: string,
-  uid: string
-): Promise<string> {
-  const res = await fetch(mintTokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uid }),
-  });
-  if (!res.ok) {
-    throw new Error(`mintToken failed: ${res.status} ${res.statusText}`);
-  }
-  const { token } = (await res.json()) as { token: string };
-  return token;
-}

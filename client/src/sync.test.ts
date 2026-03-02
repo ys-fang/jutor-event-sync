@@ -4,19 +4,13 @@ import type { EventSyncConfig } from './types.js';
 // ---- Mock modules ----
 
 const mockFetchJutorUser = vi.fn();
-const mockRequestMintToken = vi.fn();
 vi.mock('./auth.js', () => ({
   fetchJutorUser: (...args: unknown[]) => mockFetchJutorUser(...args),
-  requestMintToken: (...args: unknown[]) => mockRequestMintToken(...args),
 }));
 
-const mockInitFirebase = vi.fn();
-const mockSignInWithToken = vi.fn();
 const mockReadRecord = vi.fn();
 const mockWriteRecord = vi.fn();
-vi.mock('./firebase-client.js', () => ({
-  initFirebase: (...args: unknown[]) => mockInitFirebase(...args),
-  signInWithToken: (...args: unknown[]) => mockSignInWithToken(...args),
+vi.mock('./sync-api.js', () => ({
   readRecord: (...args: unknown[]) => mockReadRecord(...args),
   writeRecord: (...args: unknown[]) => mockWriteRecord(...args),
 }));
@@ -49,8 +43,7 @@ function createFakeLocalStorage() {
 const baseConfig: EventSyncConfig = {
   appId: 'test-app',
   localStoragePrefix: 'app_',
-  mintTokenUrl: 'https://mint.example.com/mintToken',
-  firebaseConfig: { projectId: 'test-project' },
+  syncApiUrl: 'https://api.example.com/api/event/sync',
   syncIntervalMs: 60_000,
 };
 
@@ -69,7 +62,6 @@ describe('initEventSync', () => {
 
     fakeStorage = createFakeLocalStorage();
 
-    // Provide a minimal window-like object with localStorage and addEventListener
     originalWindow = globalThis.window;
     // @ts-expect-error -- partial window mock for testing
     globalThis.window = {
@@ -95,7 +87,7 @@ describe('initEventSync', () => {
 
     expect(instance.isLoggedIn).toBe(false);
     expect(instance.user).toBeNull();
-    expect(mockInitFirebase).not.toHaveBeenCalled();
+    expect(mockReadRecord).not.toHaveBeenCalled();
   });
 
   it('redirectToLogin navigates to Jutor login page', async () => {
@@ -111,15 +103,8 @@ describe('initEventSync', () => {
     expect(window.location.href).toBe('https://jutor.example.com/login');
   });
 
-  it('authenticates and pulls from Firestore on startup when remote is newer', async () => {
+  it('pulls from server on startup when remote is newer', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
-    mockRequestMintToken.mockResolvedValue('custom-token-xyz');
-    mockSignInWithToken.mockResolvedValue(undefined);
-    mockInitFirebase.mockReturnValue({
-      app: {},
-      auth: {},
-      db: {},
-    });
 
     // Local data: older
     fakeStorage.setItem('app_user-123_score', '10');
@@ -137,26 +122,21 @@ describe('initEventSync', () => {
     expect(instance.isLoggedIn).toBe(true);
     expect(instance.user).toEqual(testUser);
 
-    // Firebase was initialized and authenticated
-    expect(mockInitFirebase).toHaveBeenCalledWith(baseConfig.firebaseConfig);
-    expect(mockRequestMintToken).toHaveBeenCalledWith(
-      baseConfig.mintTokenUrl,
-      'user-123'
+    // Sync API was called with correct args
+    expect(mockReadRecord).toHaveBeenCalledWith(
+      baseConfig.syncApiUrl,
+      'user-123',
+      'test-app'
     );
-    expect(mockSignInWithToken).toHaveBeenCalledWith('custom-token-xyz');
 
     // Remote data overwrites local
     expect(fakeStorage.getItem('app_user-123_score')).toBe('99');
     expect(fakeStorage.getItem('app_user-123_level')).toBe('5');
-    // lastSync updated
     expect(fakeStorage.getItem('app_user-123__lastSync')).toBe('2000');
   });
 
-  it('keeps local data when local is newer than Firestore', async () => {
+  it('keeps local data when local is newer than server', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
-    mockRequestMintToken.mockResolvedValue('token');
-    mockSignInWithToken.mockResolvedValue(undefined);
-    mockInitFirebase.mockReturnValue({ app: {}, auth: {}, db: {} });
 
     // Local data: newer
     fakeStorage.setItem('app_user-123_score', '50');
@@ -173,15 +153,12 @@ describe('initEventSync', () => {
 
     // Local data preserved
     expect(fakeStorage.getItem('app_user-123_score')).toBe('50');
-    // Push to Firestore since local is newer
+    // Push to server since local is newer
     expect(mockWriteRecord).toHaveBeenCalled();
   });
 
-  it('keeps local data when Firestore has no record', async () => {
+  it('keeps local data when server has no record', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
-    mockRequestMintToken.mockResolvedValue('token');
-    mockSignInWithToken.mockResolvedValue(undefined);
-    mockInitFirebase.mockReturnValue({ app: {}, auth: {}, db: {} });
 
     fakeStorage.setItem('app_user-123_score', '50');
     fakeStorage.setItem('app_user-123__lastSync', '5000');
@@ -191,17 +168,12 @@ describe('initEventSync', () => {
     const { initEventSync } = await import('./sync.js');
     await initEventSync(baseConfig);
 
-    // Local data preserved
     expect(fakeStorage.getItem('app_user-123_score')).toBe('50');
-    // Push to Firestore since no remote record
     expect(mockWriteRecord).toHaveBeenCalled();
   });
 
   it('pushes local data on syncNow()', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
-    mockRequestMintToken.mockResolvedValue('token');
-    mockSignInWithToken.mockResolvedValue(undefined);
-    mockInitFirebase.mockReturnValue({ app: {}, auth: {}, db: {} });
     mockReadRecord.mockResolvedValue(null);
     mockWriteRecord.mockResolvedValue(undefined);
 
@@ -215,6 +187,7 @@ describe('initEventSync', () => {
     await instance.syncNow();
 
     expect(mockWriteRecord).toHaveBeenCalledWith(
+      baseConfig.syncApiUrl,
       'user-123',
       'test-app',
       expect.objectContaining({ 'app_user-123_progress': 'chapter3' })
@@ -223,9 +196,6 @@ describe('initEventSync', () => {
 
   it('periodic sync triggers at configured interval', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
-    mockRequestMintToken.mockResolvedValue('token');
-    mockSignInWithToken.mockResolvedValue(undefined);
-    mockInitFirebase.mockReturnValue({ app: {}, auth: {}, db: {} });
     mockReadRecord.mockResolvedValue(null);
     mockWriteRecord.mockResolvedValue(undefined);
 
@@ -251,9 +221,6 @@ describe('initEventSync', () => {
 
   it('destroy() stops periodic sync and removes beforeunload handler', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
-    mockRequestMintToken.mockResolvedValue('token');
-    mockSignInWithToken.mockResolvedValue(undefined);
-    mockInitFirebase.mockReturnValue({ app: {}, auth: {}, db: {} });
     mockReadRecord.mockResolvedValue(null);
     mockWriteRecord.mockResolvedValue(undefined);
 

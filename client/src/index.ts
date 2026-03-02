@@ -6,11 +6,6 @@ export type {
 
 export { initEventSync, collectLocalData } from './sync.js';
 
-export {
-  initFirebase,
-  signInWithToken,
-  readRecord,
-  writeRecord,
-} from './firebase-client.js';
+export { readRecord, writeRecord } from './sync-api.js';
 
-export { fetchJutorUser, requestMintToken } from './auth.js';
+export { fetchJutorUser } from './auth.js';

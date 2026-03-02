@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fetchJutorUser, requestMintToken } from './auth.js';
-import type { JutorUser } from './types.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { fetchJutorUser } from './auth.js';
 
 describe('fetchJutorUser', () => {
   const apiBase = 'https://jutor.example.com';
@@ -11,7 +10,6 @@ describe('fetchJutorUser', () => {
   });
 
   it('returns JutorUser when session is active', async () => {
-    // Jutor API returns nested format: { success, data: { uid, userName, userData } }
     const mockApiResponse = {
       success: true,
       data: {
@@ -62,50 +60,5 @@ describe('fetchJutorUser', () => {
     const user = await fetchJutorUser(apiBase);
 
     expect(user).toBeNull();
-  });
-});
-
-describe('requestMintToken', () => {
-  const mintTokenUrl = 'https://mint.example.com/mintToken';
-  const originalFetch = globalThis.fetch;
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
-  it('returns token string on success', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ token: 'custom-token-abc' }),
-    });
-
-    const token = await requestMintToken(mintTokenUrl, 'user-123');
-
-    expect(token).toBe('custom-token-abc');
-    expect(globalThis.fetch).toHaveBeenCalledWith(mintTokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid: 'user-123' }),
-    });
-  });
-
-  it('throws on error response', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      statusText: 'Internal Server Error',
-    });
-
-    await expect(requestMintToken(mintTokenUrl, 'user-123')).rejects.toThrow(
-      'mintToken failed: 500 Internal Server Error'
-    );
-  });
-
-  it('throws on network error', async () => {
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error('Connection refused'));
-
-    await expect(requestMintToken(mintTokenUrl, 'user-123')).rejects.toThrow(
-      'Connection refused'
-    );
   });
 });
