@@ -43,27 +43,33 @@ function setLocalLastSync(prefix: string, uid: string, ts: number): void {
 }
 
 /**
- * Sync localStorage with Firestore on startup.
+ * Sync localStorage with server on startup.
  * If remote is newer, overwrites local. Otherwise pushes local to remote.
  */
 async function syncOnStartup(
   syncApiUrl: string,
   uid: string,
   appId: string,
-  prefix: string
+  prefix: string,
+  customCollect?: () => Record<string, string>,
+  customRestore?: (data: Record<string, string>) => void
 ): Promise<void> {
   const remote = await readRecord(syncApiUrl, uid, appId);
   const localLastSync = getLocalLastSync(prefix, uid);
 
   if (remote && remote.lastSync > localLastSync) {
     // Remote is newer — overwrite localStorage
-    for (const [key, value] of Object.entries(remote.data)) {
-      window.localStorage.setItem(key, value);
+    if (customRestore) {
+      customRestore(remote.data);
+    } else {
+      for (const [key, value] of Object.entries(remote.data)) {
+        window.localStorage.setItem(key, value);
+      }
     }
     setLocalLastSync(prefix, uid, remote.lastSync);
   } else {
     // Local is newer or no remote record — push to server
-    await pushToServer(syncApiUrl, uid, appId, prefix);
+    await pushToServer(syncApiUrl, uid, appId, prefix, customCollect);
   }
 }
 
@@ -74,9 +80,12 @@ async function pushToServer(
   syncApiUrl: string,
   uid: string,
   appId: string,
-  prefix: string
+  prefix: string,
+  customCollect?: () => Record<string, string>
 ): Promise<void> {
-  const data = collectLocalData(prefix, uid);
+  const data = customCollect
+    ? customCollect()
+    : collectLocalData(prefix, uid);
   await writeRecord(syncApiUrl, uid, appId, data);
   setLocalLastSync(prefix, uid, Date.now());
 }
@@ -98,6 +107,8 @@ export async function initEventSync(
     jutorApiBase,
     syncApiUrl,
     syncIntervalMs = DEFAULT_SYNC_INTERVAL_MS,
+    collectData: customCollect,
+    restoreData: customRestore,
   } = config;
 
   // 1. Check Jutor session
@@ -117,12 +128,12 @@ export async function initEventSync(
   }
 
   // 2. Sync on startup (pull if remote newer, push otherwise)
-  await syncOnStartup(syncApiUrl, user.uid, appId, prefix);
+  await syncOnStartup(syncApiUrl, user.uid, appId, prefix, customCollect, customRestore);
 
   // 3. Periodic sync (with error handling to prevent silent failures)
   const intervalId = setInterval(async () => {
     try {
-      await pushToServer(syncApiUrl, user.uid, appId, prefix);
+      await pushToServer(syncApiUrl, user.uid, appId, prefix, customCollect);
     } catch (err) {
       console.error('[event-sync] periodic sync failed:', err);
     }
@@ -130,7 +141,7 @@ export async function initEventSync(
 
   // 4. beforeunload + visibilitychange handlers for best-effort save
   const saveHandler = () => {
-    pushToServer(syncApiUrl, user.uid, appId, prefix).catch(() => {});
+    pushToServer(syncApiUrl, user.uid, appId, prefix, customCollect).catch(() => {});
   };
   window.addEventListener('beforeunload', saveHandler);
   window.addEventListener('visibilitychange', () => {
@@ -146,7 +157,7 @@ export async function initEventSync(
     redirectToLogin: () => {
       window.location.href = `${apiBase}/login`;
     },
-    syncNow: () => pushToServer(syncApiUrl, user.uid, appId, prefix),
+    syncNow: () => pushToServer(syncApiUrl, user.uid, appId, prefix, customCollect),
     destroy: () => {
       clearInterval(intervalId);
       window.removeEventListener('beforeunload', saveHandler);
