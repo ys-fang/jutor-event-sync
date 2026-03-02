@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Event Sync - Mock Test</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <h1>Event Sync Mock Test</h1>
+
+    <section>
+      <h2>Auth Status</h2>
+      <div id="auth-info">Initializing...</div>
+    </section>
+
+    <section>
+      <h2>localStorage Operations</h2>
+      <label>Key: <input id="ls-key" type="text" value="mock_score" /></label>
+      <label>Value: <input id="ls-value" type="text" value="100" /></label>
+      <button id="ls-write">Write</button>
+      <button id="ls-read">Read</button>
+      <pre id="ls-output">(no operation yet)</pre>
+    </section>
+
+    <section>
+      <h2>Sync Controls</h2>
+      <button id="sync-now" disabled>Sync Now</button>
+      <button id="sync-destroy" disabled>Destroy</button>
+      <pre id="fs-output">No sync performed yet</pre>
+    </section>
+
+    <section>
+      <h2>Log</h2>
+      <pre id="sync-log"></pre>
+    </section>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
