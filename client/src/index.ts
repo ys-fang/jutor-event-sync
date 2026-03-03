@@ -4,7 +4,13 @@ export type {
   EventSyncInstance,
 } from './types.js';
 
-export { initEventSync, collectLocalData } from './sync.js';
+export {
+  initEventSync,
+  collectLocalData,
+  wrapWithTimestamps,
+  unwrapFromTimestamps,
+  updateKeyTimestamps,
+} from './sync.js';
 
 export { readRecord, writeRecord } from './sync-api.js';
 

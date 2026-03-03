@@ -22,8 +22,8 @@ export async function writeRecord(
   syncApiUrl: string,
   uid: string,
   appId: string,
-  data: Record<string, string>
-): Promise<void> {
+  data: Record<string, unknown>
+): Promise<{ data: Record<string, unknown>; lastSync: number }> {
   const res = await fetch(syncApiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -32,4 +32,5 @@ export async function writeRecord(
   if (!res.ok) {
     throw new Error(`sync write failed: ${res.status} ${res.statusText}`);
   }
+  return (await res.json()) as { data: Record<string, unknown>; lastSync: number };
 }
