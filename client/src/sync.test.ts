@@ -38,6 +38,18 @@ function createFakeLocalStorage() {
   };
 }
 
+// ---- Helpers ----
+
+/** Create a server merge response in { v, t } format. */
+function mergedResponse(
+  entries: Record<string, { v: string; t: number }>,
+  lastSync?: number
+) {
+  const timestamps = Object.values(entries).map((e) => e.t);
+  const ts = lastSync ?? (timestamps.length ? Math.max(...timestamps) : 0);
+  return { data: entries, lastSync: ts };
+}
+
 // ---- Test config ----
 
 const baseConfig: EventSyncConfig = {
@@ -87,7 +99,7 @@ describe('initEventSync', () => {
 
     expect(instance.isLoggedIn).toBe(false);
     expect(instance.user).toBeNull();
-    expect(mockReadRecord).not.toHaveBeenCalled();
+    expect(mockWriteRecord).not.toHaveBeenCalled();
   });
 
   it('redirectToLogin navigates to Jutor login page', async () => {
@@ -103,18 +115,19 @@ describe('initEventSync', () => {
     expect(window.location.href).toBe('https://jutor.example.com/login');
   });
 
-  it('pulls from server on startup when remote is newer', async () => {
+  it('restores merged data from server on startup (server has newer keys)', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
 
-    // Local data: older
+    // Local data
     fakeStorage.setItem('app_user-123_score', '10');
-    fakeStorage.setItem('app_user-123__lastSync', '1000');
 
-    // Remote data: newer
-    mockReadRecord.mockResolvedValue({
-      data: { 'app_user-123_score': '99', 'app_user-123_level': '5' },
-      lastSync: 2000,
-    });
+    // Server merge returns newer values + extra key from another device
+    mockWriteRecord.mockResolvedValue(
+      mergedResponse({
+        'app_user-123_score': { v: '99', t: 2000 },
+        'app_user-123_level': { v: '5', t: 2000 },
+      })
+    );
 
     const { initEventSync } = await import('./sync.js');
     const instance = await initEventSync(baseConfig);
@@ -122,48 +135,55 @@ describe('initEventSync', () => {
     expect(instance.isLoggedIn).toBe(true);
     expect(instance.user).toEqual(testUser);
 
-    // Sync API was called with correct args
-    expect(mockReadRecord).toHaveBeenCalledWith(
+    // Bidirectional sync was called
+    expect(mockWriteRecord).toHaveBeenCalledWith(
       baseConfig.syncApiUrl,
       'user-123',
-      'test-app'
+      'test-app',
+      expect.objectContaining({
+        'app_user-123_score': expect.objectContaining({ v: '10' }),
+      })
     );
 
-    // Remote data overwrites local
+    // Merged data restored to localStorage
     expect(fakeStorage.getItem('app_user-123_score')).toBe('99');
     expect(fakeStorage.getItem('app_user-123_level')).toBe('5');
-    expect(fakeStorage.getItem('app_user-123__lastSync')).toBe('2000');
   });
 
-  it('keeps local data when local is newer than server', async () => {
+  it('preserves local data when server merge returns local values', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
 
-    // Local data: newer
+    // Local data (newer)
     fakeStorage.setItem('app_user-123_score', '50');
     fakeStorage.setItem('app_user-123__lastSync', '5000');
 
-    // Remote data: older
-    mockReadRecord.mockResolvedValue({
-      data: { 'app_user-123_score': '10' },
-      lastSync: 1000,
-    });
+    // Server merge returns local values (local was newer per key)
+    mockWriteRecord.mockResolvedValue(
+      mergedResponse({
+        'app_user-123_score': { v: '50', t: 5000 },
+      })
+    );
 
     const { initEventSync } = await import('./sync.js');
     await initEventSync(baseConfig);
 
     // Local data preserved
     expect(fakeStorage.getItem('app_user-123_score')).toBe('50');
-    // Push to server since local is newer
     expect(mockWriteRecord).toHaveBeenCalled();
   });
 
-  it('keeps local data when server has no record', async () => {
+  it('pushes local data when server has no prior record', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
 
     fakeStorage.setItem('app_user-123_score', '50');
     fakeStorage.setItem('app_user-123__lastSync', '5000');
 
-    mockReadRecord.mockResolvedValue(null);
+    // Server returns local data as-is (first sync, nothing to merge with)
+    mockWriteRecord.mockResolvedValue(
+      mergedResponse({
+        'app_user-123_score': { v: '50', t: 5000 },
+      })
+    );
 
     const { initEventSync } = await import('./sync.js');
     await initEventSync(baseConfig);
@@ -174,15 +194,25 @@ describe('initEventSync', () => {
 
   it('pushes local data on syncNow()', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
-    mockReadRecord.mockResolvedValue(null);
-    mockWriteRecord.mockResolvedValue(undefined);
 
     fakeStorage.setItem('app_user-123_progress', 'chapter3');
+
+    // Startup sync response
+    mockWriteRecord.mockResolvedValue(
+      mergedResponse({
+        'app_user-123_progress': { v: 'chapter3', t: 1000 },
+      })
+    );
 
     const { initEventSync } = await import('./sync.js');
     const instance = await initEventSync(baseConfig);
 
     mockWriteRecord.mockClear();
+    mockWriteRecord.mockResolvedValue(
+      mergedResponse({
+        'app_user-123_progress': { v: 'chapter3', t: 2000 },
+      })
+    );
 
     await instance.syncNow();
 
@@ -190,16 +220,22 @@ describe('initEventSync', () => {
       baseConfig.syncApiUrl,
       'user-123',
       'test-app',
-      expect.objectContaining({ 'app_user-123_progress': 'chapter3' })
+      expect.objectContaining({
+        'app_user-123_progress': expect.objectContaining({ v: 'chapter3' }),
+      })
     );
   });
 
   it('periodic sync triggers at configured interval', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
-    mockReadRecord.mockResolvedValue(null);
-    mockWriteRecord.mockResolvedValue(undefined);
 
     fakeStorage.setItem('app_user-123_data', 'test');
+
+    mockWriteRecord.mockResolvedValue(
+      mergedResponse({
+        'app_user-123_data': { v: 'test', t: 1000 },
+      })
+    );
 
     const { initEventSync } = await import('./sync.js');
     await initEventSync({ ...baseConfig, syncIntervalMs: 60_000 });
@@ -221,8 +257,8 @@ describe('initEventSync', () => {
 
   it('destroy() stops periodic sync and removes beforeunload handler', async () => {
     mockFetchJutorUser.mockResolvedValue(testUser);
-    mockReadRecord.mockResolvedValue(null);
-    mockWriteRecord.mockResolvedValue(undefined);
+
+    mockWriteRecord.mockResolvedValue(mergedResponse({}));
 
     const { initEventSync } = await import('./sync.js');
     const instance = await initEventSync(baseConfig);
@@ -274,6 +310,18 @@ describe('collectLocalData', () => {
     expect(data).toEqual({
       'app_user-123_score': '10',
       'app_user-123_level': '3',
+    });
+  });
+
+  it('excludes __keyTimestamps entries', async () => {
+    fakeStorage.setItem('app_user-123_score', '10');
+    fakeStorage.setItem('app_user-123__keyTimestamps', '{"a":1000}');
+
+    const { collectLocalData } = await import('./sync.js');
+    const data = collectLocalData('app_', 'user-123');
+
+    expect(data).toEqual({
+      'app_user-123_score': '10',
     });
   });
 });
