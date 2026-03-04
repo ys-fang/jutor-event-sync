@@ -107,6 +107,42 @@ interface EventSyncInstance {
 }
 ```
 
+### Factory API: `createAppSync()`
+
+**Recommended for new integrations.** Eliminates the ~80-line per-app eventSync wrapper by encapsulating SYNC_API_URL, EXCLUDE_SUFFIXES, collectData/restoreData logic.
+
+```typescript
+import { createAppSync } from '@jutor-event/sync';
+
+const { initSync, getSyncInstance, redirectToJutorLogin, redirectToJutorLogout } =
+  createAppSync({ appId: 'myapp', prefix: 'myapp_' });
+```
+
+#### `createAppSync(config: AppSyncConfig): AppSync`
+
+**AppSyncConfig:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `appId` | `string` | Unique app ID (stored in Firestore) |
+| `prefix` | `string` | localStorage key prefix (must end with `_`) |
+| `extraExcludeSuffixes` | `string[]` | Additional suffixes to exclude (e.g., `['_logged_out']`) |
+
+**AppSync** (returned object):
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `initSync()` | `Promise<EventSyncInstance \| null>` | Init sync, returns null on error |
+| `getSyncInstance()` | `EventSyncInstance \| null` | Get current instance (null before init) |
+| `redirectToJutorLogin()` | `void` | Navigate to `jutor.ai/login?continue=...` |
+| `redirectToJutorLogout()` | `void` | Navigate to `jutor.ai/logout?continue=...` |
+
+**Built-in defaults:**
+- `syncApiUrl`: `https://speech-token-server-819106170113.asia-east1.run.app/api/event/sync`
+- `excludeSuffixes`: `__lastSync`, `__keyTimestamps`, `_current_user` (+ any `extraExcludeSuffixes`)
+- `collectData`: Collects all `prefix`-matching localStorage keys, skipping excluded suffixes
+- `restoreData`: Writes keys to localStorage, skipping excluded suffixes
+
 ### JutorUser
 
 ```typescript
@@ -252,7 +288,7 @@ resolve: {
 
 | File | Purpose |
 |------|---------|
-| `src/lib/eventSync.ts` | Sync wrapper: `initSync()`, `redirectToJutorLogin/Logout()` |
+| `src/lib/eventSync.ts` | Sync wrapper using `createAppSync()` factory (~10 lines) |
 | `src/context/UserContext.tsx` | `UserProvider` + `useUser()` hook |
 | `src/components/LoginGate.tsx` | Login screen (Jutor SSO + guest form) |
 | `src/components/TopBar.tsx` | User menu with logout |
@@ -424,7 +460,7 @@ The collector uses `key.startsWith(prefix)`. Without the trailing underscore, a 
 
 ### 6. Custom collectData/restoreData are almost always needed
 
-The library's default collector assumes keys follow `${prefix}${uid}_*`. Most apps store keys differently (e.g., `${prefix}key` without uid), so custom functions are required. Always provide them.
+The library's default collector assumes keys follow `${prefix}${uid}_*`. Most apps store keys differently (e.g., `${prefix}key` without uid), so custom functions are required. **Use `createAppSync()` factory** which provides sensible defaults (collects all `prefix`-matching keys, excludes standard suffixes). Only write custom functions if your app has unusual storage patterns.
 
 ### 7. appId must be unique per app
 
