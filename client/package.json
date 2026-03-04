@@ -1,6 +1,7 @@
 {
   "name": "@jutor-event/sync",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "description": "Cross-device localStorage sync for Jutor event apps",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,11 +11,23 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ys-fang/jutor-event-sync.git",
+    "directory": "client"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
   "devDependencies": {
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
