@@ -1,5 +1,5 @@
 {
-  "name": "@jutor-event/sync",
+  "name": "@ys-fang/jutor-event-sync",
   "version": "0.2.2",
   "description": "Cross-device localStorage sync for Jutor event apps",
   "type": "module",
