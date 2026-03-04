@@ -10,6 +10,7 @@ export interface AppSyncConfig {
   appId: string;
   prefix: string;
   extraExcludeSuffixes?: string[];
+  extraSyncKeys?: string[];
 }
 
 export interface AppSync {
@@ -33,7 +34,10 @@ export function createAppSync(config: AppSyncConfig): AppSync {
       const key = storage.key(i);
       if (!key) continue;
       if (excludeSuffixes.some((s) => key.endsWith(s))) continue;
-      if (key.startsWith(config.prefix)) {
+      if (
+        key.startsWith(config.prefix) ||
+        (config.extraSyncKeys && config.extraSyncKeys.includes(key))
+      ) {
         data[key] = storage.getItem(key)!;
       }
     }

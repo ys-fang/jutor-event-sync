@@ -201,6 +201,69 @@ describe('createAppSync', () => {
     });
   });
 
+  it('extraSyncKeys collects both prefix keys and named global keys', async () => {
+    fakeStorage.setItem('sentence_progress', 'data1');
+    fakeStorage.setItem('byot_sessions_v1', 'sessions');
+    fakeStorage.setItem('other_random', 'skip');
+
+    mockInitEventSync.mockImplementation((config: { collectData: () => Record<string, string> }) => {
+      const collected = config.collectData();
+      return Promise.resolve({
+        user: null,
+        isLoggedIn: false,
+        redirectToLogin: vi.fn(),
+        syncNow: vi.fn(),
+        destroy: vi.fn(),
+        _collected: collected,
+      });
+    });
+
+    const { createAppSync } = await import('./app-sync.js');
+    const sync = createAppSync({
+      appId: 'sentence',
+      prefix: 'sentence_',
+      extraSyncKeys: ['byot_sessions_v1'],
+    });
+    const result = await sync.initSync() as any;
+
+    expect(result._collected).toEqual({
+      sentence_progress: 'data1',
+      byot_sessions_v1: 'sessions',
+    });
+  });
+
+  it('extraSyncKeys still respects exclude suffixes', async () => {
+    fakeStorage.setItem('byot_sessions_v1', 'keep');
+    fakeStorage.setItem('sentence___lastSync', 'skip');
+    fakeStorage.setItem('sentence_progress', 'keep');
+
+    mockInitEventSync.mockImplementation((config: { collectData: () => Record<string, string> }) => {
+      const collected = config.collectData();
+      return Promise.resolve({
+        user: null,
+        isLoggedIn: false,
+        redirectToLogin: vi.fn(),
+        syncNow: vi.fn(),
+        destroy: vi.fn(),
+        _collected: collected,
+      });
+    });
+
+    const { createAppSync } = await import('./app-sync.js');
+    const sync = createAppSync({
+      appId: 'sentence',
+      prefix: 'sentence_',
+      extraSyncKeys: ['byot_sessions_v1'],
+    });
+    const result = await sync.initSync() as any;
+
+    expect(result._collected).toEqual({
+      byot_sessions_v1: 'keep',
+      sentence_progress: 'keep',
+    });
+    expect(result._collected).not.toHaveProperty('sentence___lastSync');
+  });
+
   it('initSync returns null on error', async () => {
     mockInitEventSync.mockRejectedValue(new Error('network fail'));
 
