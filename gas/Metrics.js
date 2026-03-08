@@ -100,7 +100,7 @@ function aggregateMetrics(docs, appIds, yesterday) {
   }
 
   return {
-    date: _formatDate(new Date()),
+    date: formatDate(new Date()),
     apps,
     appIds,
     totalActive24h,
@@ -198,6 +198,6 @@ function _queryMetric(token, projectId, metricType, startTime, endTime, isGauge)
  * @param {Date} d
  * @returns {string}
  */
-function _formatDate(d) {
+function formatDate(d) {
   return Utilities.formatDate(d, 'Asia/Taipei', 'yyyy-MM-dd');
 }

@@ -14,14 +14,13 @@ const OPS_SHEET_NAME = 'Firestore Ops';
 /**
  * Append today's app metrics (one row per app).
  * @param {Object} metrics - From aggregateMetrics()
+ * @param {Object|null} yesterday - Yesterday's metrics (passed from caller to avoid redundant Sheet read)
  */
-function appendAppMetrics(metrics) {
+function appendAppMetrics(metrics, yesterday) {
   const sheet = _getOrCreateSheet(APP_SHEET_NAME, [
     'Date', 'App', 'DocCount', 'TotalKeys', 'EstStorageKB', 'Active24h', 'Active7d', 'TotalUsers', 'NewUsers',
   ]);
   if (!sheet) return;
-
-  const yesterday = getYesterdayMetrics();
 
   for (const appId of metrics.appIds) {
     const app = metrics.apps[appId];

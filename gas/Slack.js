@@ -50,9 +50,9 @@ function _formatSlackMessage(metrics, firestoreOps, alerts) {
   // Firestore Health
   lines.push(':fire: *Firestore Health*');
   if (firestoreOps.reads >= 0) {
-    lines.push(`  Reads (24h): ${_num(firestoreOps.reads)} / ${_num(FIRESTORE_LIMITS.READS_PER_DAY)} (${_pct(firestoreOps.reads, FIRESTORE_LIMITS.READS_PER_DAY)})`);
-    lines.push(`  Writes (24h): ${_num(firestoreOps.writes)} / ${_num(FIRESTORE_LIMITS.WRITES_PER_DAY)} (${_pct(firestoreOps.writes, FIRESTORE_LIMITS.WRITES_PER_DAY)})`);
-    lines.push(`  Storage: ${firestoreOps.storedMB} MB / ${Math.round(FIRESTORE_LIMITS.STORAGE_BYTES / 1048576)} MB (${_pct(firestoreOps.storedBytes, FIRESTORE_LIMITS.STORAGE_BYTES)})`);
+    lines.push(`  Reads (24h): ${fmtNum(firestoreOps.reads)} / ${fmtNum(FIRESTORE_LIMITS.READS_PER_DAY)} (${fmtPct(firestoreOps.reads, FIRESTORE_LIMITS.READS_PER_DAY)})`);
+    lines.push(`  Writes (24h): ${fmtNum(firestoreOps.writes)} / ${fmtNum(FIRESTORE_LIMITS.WRITES_PER_DAY)} (${fmtPct(firestoreOps.writes, FIRESTORE_LIMITS.WRITES_PER_DAY)})`);
+    lines.push(`  Storage: ${firestoreOps.storedMB} MB / ${Math.round(FIRESTORE_LIMITS.STORAGE_BYTES / 1048576)} MB (${fmtPct(firestoreOps.storedBytes, FIRESTORE_LIMITS.STORAGE_BYTES)})`);
   } else {
     lines.push('  _Cloud Monitoring unavailable — check SA permissions_');
   }
@@ -69,7 +69,7 @@ function _formatSlackMessage(metrics, firestoreOps, alerts) {
     } else if (app.delta24h !== null && app.delta24h !== undefined) {
       delta = ` (${app.delta24h >= 0 ? '+' : ''}${app.delta24h})`;
     }
-    lines.push(`  ${appId}: *${app.active24h}* users${delta} · ${_num(app.docCount)} docs · ${app.estStorageKB} KB`);
+    lines.push(`  ${appId}: *${app.active24h}* users${delta} · ${fmtNum(app.docCount)} docs · ${app.estStorageKB} KB`);
   }
   lines.push('');
 
@@ -107,8 +107,8 @@ function _formatSlackMessage(metrics, firestoreOps, alerts) {
  * @param {number} n
  * @returns {string}
  */
-function _num(n) {
-  return n.toLocaleString('en-US');
+function fmtNum(n) {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 /**
@@ -117,7 +117,7 @@ function _num(n) {
  * @param {number} total
  * @returns {string}
  */
-function _pct(value, total) {
+function fmtPct(value, total) {
   if (total <= 0 || value < 0) return 'N/A';
   return (value / total * 100).toFixed(1) + '%';
 }

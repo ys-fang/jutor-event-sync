@@ -21,7 +21,7 @@ function dailyReport() {
   if (docs.length === 0) {
     console.warn('No documents found in Firestore');
     const emptyMetrics = {
-      date: _formatDate(new Date()), apps: {}, appIds: [],
+      date: formatDate(new Date()), apps: {}, appIds: [],
       totalActive24h: 0, totalActive7d: 0, totalRegistered: 0,
       uniqueActiveUsers: 0, growthRate: null, newUsersToday: null,
     };
@@ -56,7 +56,7 @@ function dailyReport() {
   postToSlack(metrics, firestoreOps, alerts);
 
   // 8. Append to Sheets
-  appendAppMetrics(metrics);
+  appendAppMetrics(metrics, yesterday);
   appendFirestoreOps(firestoreOps, metrics.date);
 
   console.log('Daily report v2 complete.');
@@ -75,13 +75,13 @@ function checkAlerts(metrics, firestoreOps, yesterday) {
   // Firestore quota alerts (>70%)
   if (firestoreOps.reads >= 0) {
     if (firestoreOps.reads > FIRESTORE_LIMITS.READS_PER_DAY * 0.7) {
-      alerts.push(`Firestore reads at ${_pct(firestoreOps.reads, FIRESTORE_LIMITS.READS_PER_DAY)} of free tier`);
+      alerts.push(`Firestore reads at ${fmtPct(firestoreOps.reads, FIRESTORE_LIMITS.READS_PER_DAY)} of free tier`);
     }
     if (firestoreOps.writes > FIRESTORE_LIMITS.WRITES_PER_DAY * 0.7) {
-      alerts.push(`Firestore writes at ${_pct(firestoreOps.writes, FIRESTORE_LIMITS.WRITES_PER_DAY)} of free tier`);
+      alerts.push(`Firestore writes at ${fmtPct(firestoreOps.writes, FIRESTORE_LIMITS.WRITES_PER_DAY)} of free tier`);
     }
     if (firestoreOps.storedBytes > FIRESTORE_LIMITS.STORAGE_BYTES * 0.7) {
-      alerts.push(`Firestore storage at ${_pct(firestoreOps.storedBytes, FIRESTORE_LIMITS.STORAGE_BYTES)} of free tier`);
+      alerts.push(`Firestore storage at ${fmtPct(firestoreOps.storedBytes, FIRESTORE_LIMITS.STORAGE_BYTES)} of free tier`);
     }
   }
 
