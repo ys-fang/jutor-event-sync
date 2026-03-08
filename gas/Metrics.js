@@ -4,6 +4,9 @@
 
 const MS_PER_DAY = 86400000;
 
+/** Billing-enabled project for Cloud Monitoring API quota */
+const MONITORING_QUOTA_PROJECT = 'jutor-tools';
+
 /** Free tier limits */
 const FIRESTORE_LIMITS = {
   READS_PER_DAY: 50000,
@@ -131,7 +134,7 @@ function fetchFirestoreOps() {
     reads: _queryMetric(token, projectId, 'firestore.googleapis.com/document/read_count', startTime, endTime),
     writes: _queryMetric(token, projectId, 'firestore.googleapis.com/document/write_count', startTime, endTime),
     deletes: _queryMetric(token, projectId, 'firestore.googleapis.com/document/delete_count', startTime, endTime),
-    storedBytes: _queryMetric(token, projectId, 'firestore.googleapis.com/document/stored_bytes', startTime, endTime, true),
+    storedBytes: _queryMetric(token, projectId, 'firestore.googleapis.com/storage/data_and_index_storage_bytes', startTime, endTime, true),
   };
 
   metrics.storedMB = Math.round(metrics.storedBytes / 1048576 * 10) / 10;
@@ -153,8 +156,9 @@ function fetchFirestoreOps() {
  */
 function _queryMetric(token, projectId, metricType, startTime, endTime, isGauge) {
   const aligner = isGauge ? 'ALIGN_MEAN' : 'ALIGN_SUM';
+  const filter = encodeURIComponent(`metric.type="${metricType}"`);
   const params = [
-    `filter=metric.type="${metricType}"`,
+    `filter=${filter}`,
     `interval.startTime=${startTime}`,
     `interval.endTime=${endTime}`,
     `aggregation.alignmentPeriod=86400s`,
@@ -166,7 +170,10 @@ function _queryMetric(token, projectId, metricType, startTime, endTime, isGauge)
 
   const resp = UrlFetchApp.fetch(url, {
     method: 'get',
-    headers: { 'Authorization': 'Bearer ' + token },
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'X-Goog-User-Project': MONITORING_QUOTA_PROJECT,
+    },
     muteHttpExceptions: true,
   });
 
