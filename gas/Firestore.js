@@ -7,7 +7,7 @@
 
 // Add new app IDs here when integrating Jutor login into a new /event/[app].
 // Each entry must match the appId used in the app's eventSync.ts config.
-const KNOWN_APP_IDS = ['namiya', 'speak-sentence', 'speak-passage'];
+const KNOWN_APP_IDS = ['namiya', 'speak-sentence', 'speak-passage', 'vocabwall', 'vocabprint'];
 
 /**
  * Fetch all app documents across all users via collection group query.
