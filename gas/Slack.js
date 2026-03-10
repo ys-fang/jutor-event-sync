@@ -58,10 +58,11 @@ function _formatSlackMessage(metrics, firestoreOps, alerts) {
   }
   lines.push('');
 
-  // Per-app active users
+  // Per-app active users (sorted by active users, high to low)
   const appCount = metrics.appIds.length;
   lines.push(`:iphone: *App Usage (24h)* — ${appCount} app${appCount !== 1 ? 's' : ''} discovered`);
-  for (const appId of metrics.appIds) {
+  const sortedAppIds = [...metrics.appIds].sort((a, b) => metrics.apps[b].active24h - metrics.apps[a].active24h);
+  for (const appId of sortedAppIds) {
     const app = metrics.apps[appId];
     let delta = '';
     if (app.isNew) {
@@ -74,7 +75,11 @@ function _formatSlackMessage(metrics, firestoreOps, alerts) {
   lines.push('');
 
   // Totals
-  const newStr = metrics.newUsersToday !== null ? ` · +${metrics.newUsersToday} new today` : '';
+  let newStr = '';
+  if (metrics.newUsersToday !== null && metrics.newUsersToday !== 0) {
+    const sign = metrics.newUsersToday > 0 ? '+' : '';
+    newStr = ` · ${sign}${metrics.newUsersToday} new today`;
+  }
   lines.push(`:busts_in_silhouette: Total: *${metrics.uniqueActiveUsers}* active · *${metrics.totalRegistered}* registered${newStr}`);
   lines.push(`:chart_with_upwards_trend: 7-Day Active: *${metrics.totalActive7d}*`);
   if (metrics.growthRate !== null) {
