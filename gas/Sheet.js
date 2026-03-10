@@ -47,10 +47,11 @@ function appendAppMetrics(metrics, yesterday) {
  * Append today's Firestore ops (one row, project-level).
  * @param {Object} ops - From fetchFirestoreOps()
  * @param {string} date - YYYY-MM-DD
+ * @param {number} uniqueTotalUsers - Unique registered users across all apps
  */
-function appendFirestoreOps(ops, date) {
+function appendFirestoreOps(ops, date, uniqueTotalUsers) {
   const sheet = _getOrCreateSheet(OPS_SHEET_NAME, [
-    'Date', 'Reads', 'Writes', 'Deletes', 'StoredBytes', 'StoredMB',
+    'Date', 'Reads', 'Writes', 'Deletes', 'StoredBytes', 'StoredMB', 'UniqueTotalUsers',
   ]);
   if (!sheet) return;
 
@@ -61,6 +62,7 @@ function appendFirestoreOps(ops, date) {
     ops.deletes,
     ops.storedBytes,
     ops.storedMB,
+    uniqueTotalUsers,
   ]);
 
   console.log(`Appended Firestore ops to "${OPS_SHEET_NAME}" for ${date}`);
@@ -96,7 +98,7 @@ function getYesterdayMetrics() {
       new Date(Date.now() - MS_PER_DAY), 'Asia/Taipei', 'yyyy-MM-dd'
     );
 
-    const result = { _totalRegistered: 0 };
+    const result = { _totalRegistered: null };
     for (const row of values) {
       const dateStr = row[0] instanceof Date
         ? Utilities.formatDate(row[0], 'Asia/Taipei', 'yyyy-MM-dd')
@@ -104,15 +106,48 @@ function getYesterdayMetrics() {
       if (dateStr === yesterday) {
         const appId = row[1];
         result[appId] = { active24h: row[5], totalUsers: row[7] };
-        result._totalRegistered += row[7];
       }
     }
+
+    // Read unique total from Firestore Ops sheet (avoids double-counting users across apps)
+    result._totalRegistered = _getYesterdayUniqueTotalFromOps(ss, yesterday);
 
     return Object.keys(result).length > 1 ? result : null;
   } catch (e) {
     console.error('Failed to read yesterday metrics:', e);
     return null;
   }
+}
+
+/**
+ * Read yesterday's UniqueTotalUsers from the Firestore Ops sheet.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
+ * @param {string} yesterdayStr - YYYY-MM-DD
+ * @returns {number|null}
+ */
+function _getYesterdayUniqueTotalFromOps(ss, yesterdayStr) {
+  const opsSheet = ss.getSheetByName(OPS_SHEET_NAME);
+  if (!opsSheet) return null;
+
+  const lastRow = opsSheet.getLastRow();
+  if (lastRow < 2) return null;
+
+  // Read last 5 rows to find yesterday
+  const numRows = Math.min(lastRow - 1, 5);
+  const range = opsSheet.getRange(lastRow - numRows + 1, 1, numRows, 7);
+  const values = range.getValues();
+
+  for (const row of values) {
+    const dateStr = row[0] instanceof Date
+      ? Utilities.formatDate(row[0], 'Asia/Taipei', 'yyyy-MM-dd')
+      : String(row[0]);
+    if (dateStr === yesterdayStr) {
+      const uniqueTotal = row[6];
+      return typeof uniqueTotal === 'number' && !isNaN(uniqueTotal) ? uniqueTotal : null;
+    }
+  }
+
+  return null;
 }
 
 /**

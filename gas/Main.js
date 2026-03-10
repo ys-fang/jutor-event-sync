@@ -57,7 +57,7 @@ function dailyReport() {
 
   // 8. Append to Sheets
   appendAppMetrics(metrics, yesterday);
-  appendFirestoreOps(firestoreOps, metrics.date);
+  appendFirestoreOps(firestoreOps, metrics.date, metrics.totalRegistered);
 
   console.log('Daily report v2 complete.');
 }
